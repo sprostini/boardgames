@@ -179,6 +179,15 @@
       <div class="row"><button id="csvBtn">⬇ Download CSV</button></div>
 
       <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+      <label style="font-size:13px;color:var(--ink);font-weight:600;margin-top:0">🖼 Fill missing artwork</label>
+      <p class="hint">For games added in-app that have no cover. Copy the list, send it to Claude, and paste back the cover URLs.</p>
+      <div class="row"><button id="copyMissingBtn">⧉ Copy IDs missing artwork</button></div>
+      <label class="mt">Paste the cover URLs (JSON) here</label>
+      <textarea id="artMap" placeholder='{ "342942": "https://cf.geekdo-images.com/…", … }' style="min-height:90px"></textarea>
+      <div class="row mt"><button id="applyArtBtn" class="primary">Apply artwork</button></div>
+      <p class="hint" id="artMsg"></p>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
       <label style="font-size:13px;color:var(--ink);font-weight:600;margin-top:0">☁ Google Sheet sync</label>
       <p class="hint">Push your collection to a Google Sheet (with cover images) as a cloud copy, and pull it back to restore anywhere. <a class="bgg" href="#" onclick="var h=document.getElementById('syncHelp');h.style.display=h.style.display==='none'?'block':'none';return false">Show one-time setup ▾</a></p>
       <div id="syncHelp" class="hint" style="display:none;border:1px solid var(--line);border-radius:10px;padding:10px 12px;line-height:1.7">
@@ -594,6 +603,18 @@ function download(name, text, type){ const b=new Blob([text],{type:type||'text/p
   const a=document.createElement('a'); a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u); }
 function backup(){ download('boardgames-backup-'+new Date().toISOString().slice(0,10)+'.json',
   JSON.stringify({games,plays,meta,settings:{syncUrl:getSyncUrl(),group:!!state.group},version:2},null,2),'application/json'); }
+function missingArtIds(){ return games.filter(g=> /^\d+$/.test(String(g.id)) && !(g.thumbnail||g.image)).map(g=>g.id); }
+function copyMissingArt(){
+  const ids=missingArtIds(); const text=JSON.stringify(ids);
+  const ok=()=>{ $('#artMsg').textContent = ids.length+' game'+(ids.length===1?'':'s')+' missing artwork — IDs copied to clipboard. Send them to Claude.'; };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(ok).catch(()=>{ $('#artMsg').textContent='Copy these IDs manually: '+text; }); }
+  else { $('#artMsg').textContent='Copy these IDs manually: '+text; }
+}
+function applyArtwork(){
+  let map; try{ map=JSON.parse($('#artMap').value); }catch(e){ $('#artMsg').textContent='That doesn’t look like valid JSON.'; return; }
+  let n=0; for(const g of games){ const u=map[g.id]; if(u){ g.thumbnail=u; g.image=u; n++; } }
+  saveLS(LS.games,games); render(); $('#artMap').value=''; $('#artMsg').textContent='Filled artwork for '+n+' game'+(n===1?'':'s')+' ✓';
+}
 function csvEscape(s){ s=(s??'').toString(); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
 function exportCSV(){
   const rows=[['Name','Year','Type','Status','RemovedNote','RemovedDate','Copies','TotalPlays','Comment','BGGid']];
@@ -867,6 +888,8 @@ $('#doImport').addEventListener('click', ()=>{ try{ const n=importCollection($('
 $('#fileInput').addEventListener('change', e=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ try{ importCollection(r.result); closeOverlay('importOverlay'); }catch(err){ $('#importMsg').textContent=err.message; } }; r.readAsText(f); });
 $('#backupBtn').addEventListener('click', backup);
 $('#csvBtn').addEventListener('click', exportCSV);
+$('#copyMissingBtn').addEventListener('click', copyMissingArt);
+$('#applyArtBtn').addEventListener('click', applyArtwork);
 $('#restoreInput').addEventListener('change', e=>{ if(e.target.files[0]) restore(e.target.files[0]); });
 $('#clearBtn').addEventListener('click', ()=>{ if(confirm('Delete the collection AND play log from this browser? Download a backup first if unsure.')){ games=[];plays=[];meta={}; saveLS(LS.games,games);saveLS(LS.plays,plays);saveLS(LS.meta,meta); closeOverlay('menuOverlay'); render(); } });
 $$('[data-close]').forEach(b=>b.addEventListener('click', ()=>b.closest('.overlay').classList.remove('open')));
