@@ -207,6 +207,11 @@
   <div class="modal" style="max-width:440px" id="removeModal"></div>
 </div>
 
+<!-- Move-to-pending modal -->
+<div class="overlay" id="pendingOverlay">
+  <div class="modal" style="max-width:440px" id="pendingModal"></div>
+</div>
+
 <!-- Base-game picker modal -->
 <div class="overlay" id="parentOverlay">
   <div class="modal" style="max-width:520px" id="parentModal"></div>
@@ -499,8 +504,8 @@ function openDetail(id){
         ${g.pending
           ? `<button class="primary" style="background:var(--played);border-color:var(--played)" onclick="markArrived('${g.id}')">✓ Mark as arrived</button>`
           : g.removed
-          ? `<button class="ghost" style="color:var(--played)" onclick="restoreGame('${g.id}')">↩ Restore to collection</button>`
-          : `<button class="ghost" style="color:#dc2626" onclick="openRemove('${g.id}')">✂ Remove from collection</button>`}
+          ? `<button class="ghost" style="color:var(--played)" onclick="restoreGame('${g.id}')">↩ Restore to collection</button><button class="ghost" onclick="openPending('${g.id}')">🚚 Move to pending</button>`
+          : `<button class="ghost" style="color:#dc2626" onclick="openRemove('${g.id}')">✂ Remove from collection</button><button class="ghost" onclick="openPending('${g.id}')">🚚 Move to pending</button>`}
       </div>
       ${isExp(g)?`<div class="mt"><label>Base game</label><div class="row"><span class="hint">${(g.parentId&&gameById(g.parentId))?esc(gameById(g.parentId).name):'Not set (shown standalone)'}</span><button class="ghost" onclick="openParentPicker('${g.id}')">Change base game…</button></div></div>`:''}
       ${children.length?`<div class="mt"><label>Expansions you own (${children.length})</label><div class="exp-list hint">${children.map(c=>esc(c.name)).join(' · ')}</div></div>`:''}
@@ -643,12 +648,20 @@ function payloadForSheet(){
     plays: plays.map(p=>Object.assign({}, p, { __gameName:(gameById(p.gameId)||{}).name||'' }))
   };
 }
+async function readSyncJson(res){
+  const text = await res.text();
+  try{ return JSON.parse(text); }
+  catch(e){
+    if(/^\s*</.test(text)) throw new Error('the URL returned a sign-in / web page, not data. In Apps Script open Deploy → Manage deployments, set “Who has access” to “Anyone”, and use the URL ending in /exec.');
+    throw new Error('unexpected (non-JSON) response from that URL.');
+  }
+}
 async function pushSheet(){
   const url=getSyncUrl(); if(!url){ $('#syncMsg').textContent='Paste your Web app URL and click Save URL first.'; return; }
   $('#syncMsg').textContent='Pushing to your Google Sheet…';
   try{
     const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payloadForSheet())});
-    const data=await res.json();
+    const data=await readSyncJson(res);
     if(data && data.ok!==false){ $('#syncMsg').textContent='Pushed '+(data.count!=null?data.count+' games ':'')+'to your Google Sheet ✓'; toast('Pushed to Google Sheet ✓'); }
     else throw new Error((data&&data.error)||'Unknown error');
   }catch(e){ $('#syncMsg').textContent='Push failed: '+e.message+'. Check the URL, and that the deployment’s access is set to “Anyone”.'; }
@@ -659,7 +672,7 @@ async function pullSheet(){
   $('#syncMsg').textContent='Pulling from your Google Sheet…';
   try{
     const res=await fetch(url,{method:'GET'});
-    const data=await res.json();
+    const data=await readSyncJson(res);
     if(data && data.games && data.games.length){
       games=data.games; plays=data.plays||[]; if(data.meta)meta=data.meta;
       saveLS(LS.games,games); saveLS(LS.plays,plays); saveLS(LS.meta,meta);
@@ -738,12 +751,29 @@ function searchAdd(){
 }
 function addGame({id,name,year,exp,image}){
   name=(name||'').trim(); if(!name){ $('#addMsg').textContent='Enter a game name.'; return; }
-  if(id && games.some(g=>g.id===id)){ toast('“'+name+'” is already in your collection'); return; }
+  const pendEl=$('#addPending');
+  const wantPending = !!(pendEl && pendEl.checked);
+  const pendingNote = wantPending ? (($('#addPendingNote').value||'').trim()) : '';
+  if(id){
+    const existing = games.find(g=>g.id===id);
+    if(existing){
+      // Already present. If it was removed or pending, re-activate it with the requested status
+      // rather than blocking (fixes "already in collection" dead-ends).
+      if(existing.removed || existing.pending){
+        delete existing.removed; delete existing.removedNote; delete existing.removedDate;
+        if(wantPending){ existing.pending=true; existing.pendingNote=pendingNote; }
+        else { delete existing.pending; delete existing.pendingNote; delete existing.pendingDate; }
+        saveLS(LS.games,games); render(); closeOverlay('addOverlay');
+        toast('“'+existing.name+'” '+(wantPending?'moved to pending':'is back in your collection'));
+        return;
+      }
+      toast('“'+name+'” is already in your collection'); return;
+    }
+  }
   const g={ id:id||('m'+Date.now()), name, sortName:computeSort(name,1), year:year||'', image:image||'', thumbnail:image||'',
     comment:'', own:true, fortrade:false, bggPlays:0, copies:1, addedManually:true };
   if(exp) g.overrideExpansion=true;
-  const pendEl=$('#addPending');
-  if(pendEl && pendEl.checked){ g.pending=true; g.pendingNote=($('#addPendingNote').value||'').trim(); }
+  if(wantPending){ g.pending=true; g.pendingNote=pendingNote; }
   games.push(g); detectExpansions(games);
   if(exp) g.overrideExpansion=true;   // detectExpansions may reset; isExp() honours the override
   saveLS(LS.games, games); render();
@@ -752,6 +782,23 @@ function addGame({id,name,year,exp,image}){
 function markArrived(id){ const g=gameById(id); if(!g) return;
   delete g.pending; delete g.pendingNote; delete g.pendingDate;
   saveLS(LS.games,games); render(); openDetail(id); toast('“'+g.name+'” marked as arrived 🎉'); }
+function openPending(id){ const g=gameById(id); if(!g) return;
+  $('#pendingModal').innerHTML = `
+    <div class="head"><h2 style="margin:0">Move to Pending</h2><button class="close ghost" onclick="closeOverlay('pendingOverlay')">✕</button></div>
+    <div class="body">
+      <div class="kv"><b>${esc(g.name)}</b> moves to your “On the way” list.</div>
+      <label class="mt">Note (e.g. “Kickstarter — est. Q4 2026”)</label>
+      <input type="text" id="pd_note" value="${esc(g.pendingNote||'')}" placeholder="optional">
+      <label>Expected date</label>
+      <input type="date" id="pd_date" value="${esc(g.pendingDate||'')}">
+      <div class="row mt"><button class="primary" onclick="confirmPending('${g.id}')">Move to pending</button><button class="ghost" onclick="closeOverlay('pendingOverlay')">Cancel</button></div>
+    </div>`;
+  openOverlay('pendingOverlay');
+}
+function confirmPending(id){ const g=gameById(id); if(!g) return;
+  delete g.removed; delete g.removedNote; delete g.removedDate;
+  g.pending=true; g.pendingNote=$('#pd_note').value.trim(); g.pendingDate=$('#pd_date').value||'';
+  saveLS(LS.games,games); closeOverlay('pendingOverlay'); closeOverlay('detailOverlay'); render(); toast('Moved “'+g.name+'” to pending'); }
 function manualAdd(){
   addGame({ id:$('#m_id').value.trim(), name:$('#m_name').value, year:$('#m_year').value.trim(), image:$('#m_image').value.trim(), exp:false });
   ['m_name','m_year','m_id','m_image'].forEach(k=>$('#'+k).value='');

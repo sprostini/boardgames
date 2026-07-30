@@ -103,17 +103,27 @@ function writeAll(data) {
   pd.setFrozenRows(1);
 
   // ---- hidden raw JSON for exact restore ----
+  // A single Sheets cell holds max ~50,000 chars, so split the JSON across as many rows as needed.
   var d = sheet(T_DATA);
   d.clear();
-  d.getRange(1, 1).setValue(JSON.stringify({ games: games, plays: plays, meta: data.meta || {} }));
+  var blob = JSON.stringify({ games: games, plays: plays, meta: data.meta || {} });
+  var CHUNK = 45000, rows = [];
+  for (var i = 0; i < blob.length; i += CHUNK) rows.push([blob.substring(i, i + CHUNK)]);
+  if (!rows.length) rows.push(['']);
+  d.getRange(1, 1, rows.length, 1).setValues(rows);
   try { d.hideSheet(); } catch (e) {}
 }
 
 function readAll() {
   var d = ss().getSheetByName(T_DATA);
   if (d) {
-    var raw = d.getRange(1, 1).getValue();
-    if (raw) { try { return JSON.parse(raw); } catch (e) {} }
+    var last = d.getLastRow();
+    if (last >= 1) {
+      var vals = d.getRange(1, 1, last, 1).getValues();
+      var raw = '';
+      for (var i = 0; i < vals.length; i++) raw += vals[i][0];
+      if (raw) { try { return JSON.parse(raw); } catch (e) {} }
+    }
   }
   return { games: [], plays: [] };
 }
