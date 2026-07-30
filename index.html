@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Board Game Collection</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#ffffff; --ink:#1d2129; --muted:#6b7280;
+    --line:#e5e7eb; --accent:#5b8def; --accent-ink:#fff;
+    --exp:#8b5cf6; --played:#16a34a; --chip:#eef1f5; --shadow:0 1px 3px rgba(0,0,0,.08),0 6px 18px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#14161a; --panel:#1e2127; --ink:#e8eaed; --muted:#9aa2ad;
+      --line:#2c3038; --accent:#6b9bff; --chip:#262a31; --shadow:0 1px 3px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35); }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased;}
+  header{position:sticky; top:0; z-index:20; background:var(--panel); border-bottom:1px solid var(--line);
+    box-shadow:var(--shadow)}
+  .bar{max-width:1200px; margin:0 auto; padding:12px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+  .brand{font-weight:700; font-size:18px; display:flex; align-items:center; gap:8px; margin-right:6px}
+  .brand small{font-weight:500; color:var(--muted); font-size:12px}
+  .grow{flex:1 1 auto}
+  input[type=search], select, input[type=text], input[type=date], textarea{
+    font:inherit; color:inherit; background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:8px 10px}
+  input[type=search]{min-width:180px}
+  button{font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+    border-radius:9px; padding:8px 12px; display:inline-flex; align-items:center; gap:6px}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+  button.ghost{background:transparent}
+  .stats{max-width:1200px; margin:0 auto; padding:6px 16px 0; display:flex; gap:16px; flex-wrap:wrap; color:var(--muted); font-size:13px}
+  .stats b{color:var(--ink)}
+  .chips{max-width:1200px; margin:0 auto; padding:10px 16px; display:flex; gap:8px; flex-wrap:wrap}
+  .chip{background:var(--chip); border:1px solid transparent; border-radius:999px; padding:6px 12px; font-size:13px; cursor:pointer; color:var(--muted)}
+  .chip.active{background:var(--accent); color:var(--accent-ink)}
+  main{max-width:1200px; margin:0 auto; padding:8px 16px 60px}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:16px}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:14px; overflow:hidden; cursor:pointer;
+    transition:transform .12s ease, box-shadow .12s ease; position:relative}
+  .card:hover{transform:translateY(-3px); box-shadow:var(--shadow)}
+  .cover{width:100%; aspect-ratio:1/1; object-fit:cover; background:var(--chip); display:block}
+  .card .meta{padding:8px 10px 10px}
+  .card .name{font-size:13px; font-weight:600; line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.4em}
+  .card .sub{font-size:11px; color:var(--muted); margin-top:3px; display:flex; justify-content:space-between; align-items:center}
+  .badge{position:absolute; top:8px; left:8px; font-size:10px; font-weight:700; letter-spacing:.03em; padding:3px 7px; border-radius:999px; color:#fff; text-transform:uppercase}
+  .badge.exp{background:var(--exp)}
+  .badge.gone{background:#dc2626}
+  .badge.pending{background:var(--accent)}
+  .card.pending{border-style:dashed}
+  .card.pending .cover{filter:saturate(.9) opacity(.92)}
+  .card.removed{opacity:.62}
+  .card.removed .cover{filter:grayscale(.5)}
+  #groupBtn.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+  .exp-toggle{margin-top:6px;font-size:11px;font-weight:600;color:var(--accent);cursor:pointer}
+  .exp-toggle:hover{text-decoration:underline}
+  .cascade{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;padding:12px;margin-top:-4px;background:var(--chip);border-radius:12px}
+  .mini{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 10px;cursor:pointer;max-width:230px}
+  .mini:hover{border-color:var(--accent)}
+  .mini img,.mini .mph{width:34px;height:34px;flex:none;object-fit:cover;border-radius:6px;background:var(--chip);display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:700;font-size:14px}
+  .mini span{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pcount{background:var(--played); color:#fff; border-radius:999px; padding:1px 7px; font-size:10px; font-weight:700}
+  .pcount.zero{background:var(--chip); color:var(--muted)}
+  .copies{position:absolute; top:8px; right:8px; background:rgba(0,0,0,.65); color:#fff; font-size:10px; font-weight:700; padding:2px 6px; border-radius:6px}
+  .empty{padding:60px 20px; text-align:center; color:var(--muted)}
+  /* modal */
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; z-index:40; padding:16px}
+  .overlay.open{display:flex}
+  .modal{background:var(--panel); border-radius:16px; max-width:640px; width:100%; max-height:90vh; overflow:auto; box-shadow:var(--shadow)}
+  .modal .head{display:flex; gap:14px; padding:16px; border-bottom:1px solid var(--line)}
+  .modal .head img{width:130px; height:130px; object-fit:cover; border-radius:10px; background:var(--chip); flex:none}
+  .modal h2{margin:0 0 4px; font-size:19px}
+  .modal .body{padding:16px}
+  .kv{color:var(--muted); font-size:13px; margin:2px 0}
+  .kv b{color:var(--ink)}
+  .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .mt{margin-top:14px}
+  .close{margin-left:auto; align-self:flex-start}
+  label{font-size:12px; color:var(--muted); display:block; margin:10px 0 3px}
+  .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+  .full{grid-column:1/-1}
+  textarea{width:100%; min-height:150px; resize:vertical; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px}
+  .play-item{border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:8px}
+  .play-item .t{font-weight:600; font-size:14px}
+  .play-item .d{color:var(--muted); font-size:12px}
+  .exp-list a{color:var(--accent); text-decoration:none}
+  .hint{font-size:12px; color:var(--muted); line-height:1.5}
+  a.bgg{color:var(--accent); text-decoration:none; font-size:13px}
+  .seg{display:inline-flex; border:1px solid var(--line); border-radius:9px; overflow:hidden}
+  .seg button{border:none; border-radius:0; background:transparent}
+  .seg button.on{background:var(--accent); color:#fff}
+  .toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:10px 16px; border-radius:10px; font-size:13px; opacity:0; transition:opacity .2s; z-index:60}
+  .toast.show{opacity:1}
+  .cover.ph{display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:800;color:var(--muted);background:linear-gradient(135deg,var(--chip),var(--panel))}
+  .cover.broken{visibility:hidden}
+  .modal .head .ph{width:130px;height:130px;border-radius:10px;font-size:48px}
+  .result{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;cursor:pointer}
+  .result:hover{border-color:var(--accent);background:var(--chip)}
+  .result .yr{color:var(--muted);font-size:12px;margin-left:auto;white-space:nowrap}
+  .idxbadge{font-size:12px;color:var(--muted)}
+  #addResults{max-height:320px;overflow:auto}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand">🎲 My Board Games <small id="uname"></small></div>
+    <div class="grow"></div>
+    <input id="search" type="search" placeholder="Search…" autocomplete="off">
+    <select id="sort" title="Sort">
+      <option value="alpha">A → Z</option>
+      <option value="year">Newest first</option>
+      <option value="yearold">Oldest first</option>
+      <option value="plays">Most played</option>
+    </select>
+    <button id="groupBtn" class="ghost" title="Group expansions under their base game">⊟ Group exp.</button>
+    <div class="seg" id="viewseg">
+      <button data-view="collection" class="on">Collection</button>
+      <button data-view="plays">Plays</button>
+    </div>
+    <button id="addBtn" class="ghost" title="Add a game">＋ Add</button>
+    <button id="importBtn" class="primary">Import</button>
+    <button id="menuBtn" class="ghost" title="Backup / restore">⋯</button>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div class="chips" id="chips"></div>
+</header>
+
+<main>
+  <div id="collectionView">
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty" style="display:none"></div>
+  </div>
+  <div id="playsView" style="display:none"></div>
+</main>
+
+<!-- Detail modal -->
+<div class="overlay" id="detailOverlay">
+  <div class="modal" id="detailModal"></div>
+</div>
+
+<!-- Log play modal -->
+<div class="overlay" id="playOverlay">
+  <div class="modal" style="max-width:460px" id="playModal"></div>
+</div>
+
+<!-- Import modal -->
+<div class="overlay" id="importOverlay">
+  <div class="modal" style="max-width:600px">
+    <div class="head"><h2 style="margin:0">Import your collection</h2><button class="close ghost" data-close>✕</button></div>
+    <div class="body">
+      <p class="hint">While logged in to BoardGameGeek, open your collection export, then copy the whole page and paste it below. (This is the only route that still works without an API token.)</p>
+      <div class="row"><a class="bgg" id="collLink" target="_blank" rel="noopener">↗ Open my BGG collection export</a></div>
+      <label>Paste the collection XML here</label>
+      <textarea id="xmlInput" placeholder="&lt;items totalitems=…&gt; … &lt;/items&gt;"></textarea>
+      <div class="row mt">
+        <button class="primary" id="doImport">Parse &amp; import</button>
+        <span class="hint">or load a saved file:</span>
+        <input type="file" id="fileInput" accept=".xml,.txt">
+      </div>
+      <p class="hint mt" id="importMsg"></p>
+    </div>
+  </div>
+</div>
+
+<!-- Menu modal -->
+<div class="overlay" id="menuOverlay">
+  <div class="modal" style="max-width:440px">
+    <div class="head"><h2 style="margin:0">Backup &amp; data</h2><button class="close ghost" data-close>✕</button></div>
+    <div class="body">
+      <p class="hint">Your collection and play log live in this browser. Download a backup regularly so nothing is lost if the browser is cleared.</p>
+      <div class="row"><button id="backupBtn">⬇ Download backup (.json)</button></div>
+      <label>Restore from a backup file</label>
+      <input type="file" id="restoreInput" accept=".json">
+      <label class="mt">Export collection as spreadsheet</label>
+      <div class="row"><button id="csvBtn">⬇ Download CSV</button></div>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+      <label style="font-size:13px;color:var(--ink);font-weight:600;margin-top:0">☁ Google Sheet sync</label>
+      <p class="hint">Push your collection to a Google Sheet (with cover images) as a cloud copy, and pull it back to restore anywhere. <a class="bgg" href="#" onclick="var h=document.getElementById('syncHelp');h.style.display=h.style.display==='none'?'block':'none';return false">Show one-time setup ▾</a></p>
+      <div id="syncHelp" class="hint" style="display:none;border:1px solid var(--line);border-radius:10px;padding:10px 12px;line-height:1.7">
+        <ol style="margin:0;padding-left:18px">
+          <li>Open <b>sheets.new</b> to make a blank Google Sheet.</li>
+          <li><b>Extensions → Apps Script</b>.</li>
+          <li>Delete any code, paste everything from <b>google-apps-script.gs</b> (in your boardgames folder), click <b>Save</b>.</li>
+          <li><b>Deploy → New deployment → Web app</b>. Set <b>Execute as: Me</b> and <b>Who has access: Anyone</b>, then <b>Deploy</b>.</li>
+          <li>Authorise: pick your account → <b>Advanced</b> → “Go to … (unsafe)” → <b>Allow</b>. (It’s your own script.)</li>
+          <li>Copy the <b>Web app URL</b> and paste it below → <b>Save URL</b>.</li>
+        </ol>
+      </div>
+      <label>Web app URL</label>
+      <input type="text" id="syncUrl" placeholder="https://script.google.com/macros/s/…/exec">
+      <div class="row mt"><button id="syncSaveBtn" class="ghost">Save URL</button><button id="pushBtn" class="primary">☁ Push to Sheet</button><button id="pullBtn" class="ghost">⬇ Pull from Sheet</button></div>
+      <p class="hint" id="syncMsg"></p>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+      <div class="row mt"><button id="reimportBtn">↻ Re-import from BGG</button><button id="clearBtn" class="ghost" style="color:#dc2626">Clear everything</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Remove game modal -->
+<div class="overlay" id="removeOverlay">
+  <div class="modal" style="max-width:440px" id="removeModal"></div>
+</div>
+
+<!-- Base-game picker modal -->
+<div class="overlay" id="parentOverlay">
+  <div class="modal" style="max-width:520px" id="parentModal"></div>
+</div>
+
+<!-- Add game modal -->
+<div class="overlay" id="addOverlay">
+  <div class="modal" style="max-width:560px">
+    <div class="head"><h2 style="margin:0">Add a game</h2><button class="close ghost" data-close>✕</button></div>
+    <div class="body">
+      <div class="idxbadge" id="indexCount" style="margin-bottom:8px"></div>
+      <input type="search" id="addSearch" placeholder="Search games by name…" autocomplete="off" style="width:100%">
+      <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--ink)"><input type="checkbox" id="addPending" style="width:auto;margin:0"> Add as <b>&nbsp;Pending&nbsp;</b> — coming via crowdfunding</label>
+      <input type="text" id="addPendingNote" placeholder="e.g. Kickstarter — est. Q4 2026" style="display:none;margin-top:6px">
+      <div id="addResults" style="margin-top:10px"></div>
+
+      <div id="indexArea" style="display:none">
+        <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
+        <p class="hint">To search every game, load BoardGameGeek’s games list once — a free CSV you download while logged in (the exempt route, no token needed). It’s also what will power an accurate expansion split later.</p>
+        <div class="row"><a class="bgg" href="https://boardgamegeek.com/data_dumps/bg_ranks" target="_blank" rel="noopener">↗ Get the BGG games CSV (logged in)</a></div>
+        <label>Then load the downloaded .csv here</label>
+        <input type="file" id="indexFile" accept=".csv,.txt">
+        <p class="hint" id="indexMsg"></p>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
+      <label style="color:var(--ink);font-weight:600">Add manually</label>
+      <p class="hint">For anything not in the list — or if you’d rather not load it.</p>
+      <div class="form-grid">
+        <div class="full"><label>Name</label><input type="text" id="m_name" placeholder="Game name"></div>
+        <div><label>Year</label><input type="text" id="m_year" placeholder="optional"></div>
+        <div><label>BGG ID</label><input type="text" id="m_id" placeholder="optional"></div>
+        <div class="full"><label>Cover image URL</label><input type="text" id="m_image" placeholder="optional — paste an image address"></div>
+      </div>
+      <div class="row mt"><button class="primary" id="m_addBtn">Add game</button></div>
+      <p class="hint" id="addMsg"></p>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const USERNAME = "Sprostini";
+const LS = { games:'bgg_games_v1', plays:'bgg_plays_v1', meta:'bgg_meta_v1' };
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => (s??'').toString().replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function loadLS(k,d){ try{ const v=JSON.parse(localStorage.getItem(k)); return v??d }catch(e){ return d } }
+function saveLS(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)) }catch(e){ toast('Could not save — storage may be full or blocked.') } }
+
+let games = loadLS(LS.games, []);
+let plays = loadLS(LS.plays, []);
+let meta  = loadLS(LS.meta, {});
+let state = { view:'collection', filter:'all', sort:'alpha', q:'', group: localStorage.getItem('bgg_group')==='1' };
+let expandedBases = new Set();
+let expansionFlagById = null;   // id -> is_expansion, from the BGG games CSV (authoritative)
+
+/* ---------- Parsing ---------- */
+function txt(el,tag){ const n=el.querySelector(tag); return n?n.textContent.trim():'' }
+function computeSort(name, si){ si=parseInt(si||1,10); return (si>1 && si<=name.length)? name.slice(si-1) : name; }
+
+function sanitizeXml(s){
+  s = (s||'').replace(/^﻿/,'').trim();
+  const lt = s.indexOf('<'); if(lt>0) s = s.slice(lt);            // drop any preamble text
+  // Copying from BGG's on-screen XML view yields decoded "&" (and stray < >) that break strict XML.
+  s = s.replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
+  return s;
+}
+function parseCollection(xmlText){
+  const clean = sanitizeXml(xmlText);
+  let doc = new DOMParser().parseFromString(clean, 'application/xml');
+  if(doc.querySelector('parsererror')){
+    doc = new DOMParser().parseFromString(clean, 'text/html');   // lenient fallback
+  }
+  const items = [...doc.querySelectorAll('item')];
+  if(!items.length) throw new Error('Couldn’t find any games in that text. Make sure you copied the whole page — it should start with “<items” and end with “</items>”.');
+  const map = new Map();
+  for(const it of items){
+    const id = it.getAttribute('objectid'); if(!id) continue;
+    const nameEl = it.querySelector('name');
+    const name = nameEl? nameEl.textContent.trim() : '(unknown)';
+    const si = nameEl? nameEl.getAttribute('sortindex') : 1;
+    const year = txt(it,'yearpublished');
+    const image = txt(it,'image');
+    const thumbnail = txt(it,'thumbnail') || image;
+    const comment = txt(it,'comment');
+    const statusEl = it.querySelector('status');
+    const own = statusEl? statusEl.getAttribute('own')==='1' : true;
+    const fortrade = statusEl? statusEl.getAttribute('fortrade')==='1' : false;
+    const numplays = parseInt(txt(it,'numplays')||'0',10);
+    if(map.has(id)){ const g=map.get(id); g.copies++; g.bggPlays=Math.max(g.bggPlays,numplays); if(!g.comment&&comment)g.comment=comment; continue; }
+    map.set(id, { id, name, sortName:computeSort(name,si), year, image, thumbnail, comment, own, fortrade, bggPlays:numplays, copies:1 });
+  }
+  return [...map.values()];
+}
+
+function detectExpansions(list){
+  const seps = [': ', ' – ', ' — ', ' - '];
+  for(const g of list){
+    if(g.parentManual) continue;   // user set this game's classification by hand — leave it
+    // best-guess parent: a shorter owned game whose name is a prefix
+    let prefix=null;
+    for(const sep of seps){ const i=g.name.indexOf(sep); if(i>0){ prefix=g.name.slice(0,i); break; } }
+    let best=null;
+    if(prefix){
+      const pn = prefix.toLowerCase().trim();
+      for(const b of list){
+        if(b.id===g.id) continue;
+        const bn=b.name.toLowerCase();
+        if((bn===pn || bn.startsWith(pn)) && b.name.length < g.name.length){
+          if(!best || b.name.length < best.name.length) best=b;
+        }
+      }
+    }
+    // classification: prefer BGG's authoritative is_expansion (games CSV) when available, else the name heuristic
+    const flag = (expansionFlagById && (g.id in expansionFlagById)) ? expansionFlagById[g.id] : !!best;
+    g.isExpansion = flag;
+    g.parentId = (flag && best) ? best.id : null;
+  }
+}
+
+const PRESERVE_ON_IMPORT = ['overrideExpansion','parentManual','removed','removedNote','removedDate','pending','pendingNote','pendingDate','hidden','coverManual'];
+function importCollection(xmlText){
+  const list = parseCollection(xmlText);
+  const prevById = new Map(games.map(g=>[g.id,g]));
+  const newIds = new Set(list.map(g=>g.id));
+  // merge your in-app edits onto the freshly imported games
+  for(const g of list){
+    const p = prevById.get(g.id); if(!p) continue;
+    for(const k of PRESERVE_ON_IMPORT){ if(k in p) g[k]=p[k]; }
+    if(p.parentManual) g.parentId = p.parentId;              // keep hand-picked base game
+    if(p.coverManual){ g.thumbnail=p.thumbnail; g.image=p.image; }
+    if(p.comment && !g.comment) g.comment=p.comment;
+  }
+  // keep app-only entries not present in the BGG import (manual adds, pending, removed)
+  for(const p of games){ if(!newIds.has(p.id) && (p.addedManually || p.pending || p.removed)) list.push(p); }
+  detectExpansions(list);                                     // runs last; skips parentManual games
+  games = list; saveLS(LS.games, games);
+  meta = { importedAt:new Date().toISOString(), count:games.length, username:USERNAME }; saveLS(LS.meta, meta);
+  render(); toast('Imported — '+games.length+' games ✓');
+  return list.length;
+}
+
+/* ---------- Helpers ---------- */
+const isExp = g => ('overrideExpansion' in g) ? g.overrideExpansion : !!g.isExpansion;
+const localPlays = id => plays.filter(p=>p.gameId===id).reduce((n,p)=>n+(p.quantity||1),0);
+const totalPlays = g => (g.bggPlays||0) + localPlays(g.id);
+const gameById = id => games.find(g=>g.id===id);
+
+/* ---------- Rendering ---------- */
+function render(){
+  $('#uname').textContent = meta.username? '· '+meta.username : '';
+  renderStats(); renderChips();
+  $('#collectionView').style.display = state.view==='collection'?'':'none';
+  $('#playsView').style.display = state.view==='plays'?'':'none';
+  $$('#viewseg button').forEach(b=>b.classList.toggle('on', b.dataset.view===state.view));
+  if(state.view==='collection') renderGrid(); else renderPlays();
+}
+
+function renderStats(){
+  const owned = games.filter(g=>!g.removed && !g.pending);
+  const bases = owned.filter(g=>!isExp(g));
+  const exps = owned.filter(g=>isExp(g));
+  const played = owned.filter(g=>totalPlays(g)>0).length;
+  const totPlays = owned.reduce((n,g)=>n+totalPlays(g),0);
+  const removed = games.filter(g=>g.removed).length;
+  const pending = games.filter(g=>g.pending).length;
+  $('#stats').innerHTML = games.length
+    ? `<span><b>${owned.length}</b> in collection</span><span><b>${bases.length}</b> games</span><span><b>${exps.length}</b> expansions</span><span><b>${played}</b> played</span><span><b>${totPlays}</b> total plays</span>${pending?`<span><b>${pending}</b> on the way</span>`:''}${removed?`<span><b>${removed}</b> removed</span>`:''}`
+    : '';
+}
+
+const FILTERS = [['all','All'],['games','Games'],['exp','Expansions'],['played','Played'],['unplayed','Unplayed'],['trade','For trade'],['pending','On the way'],['removed','Removed']];
+function renderChips(){
+  if(!games.length){ $('#chips').innerHTML=''; return; }
+  const hasRemoved = games.some(g=>g.removed);
+  const hasPending = games.some(g=>g.pending);
+  $('#chips').innerHTML = FILTERS.filter(([k])=> (k!=='removed'||hasRemoved) && (k!=='pending'||hasPending))
+    .map(([k,l])=>`<span class="chip ${state.filter===k?'active':''}" data-f="${k}">${l}</span>`).join('');
+}
+
+function passesFilter(g){
+  if(state.filter==='removed') return !!g.removed;
+  if(state.filter==='pending') return !!g.pending;
+  if(g.removed || g.pending) return false;
+  switch(state.filter){
+    case 'games': return !isExp(g);
+    case 'exp': return isExp(g);
+    case 'played': return totalPlays(g)>0;
+    case 'unplayed': return totalPlays(g)===0;
+    case 'trade': return !!g.fortrade;
+    default: return true;
+  }
+}
+function sorter(a,b){
+  switch(state.sort){
+    case 'year': return (parseInt(b.year||0)-parseInt(a.year||0)) || a.sortName.localeCompare(b.sortName);
+    case 'yearold': return (parseInt(a.year||9999)-parseInt(b.year||9999)) || a.sortName.localeCompare(b.sortName);
+    case 'plays': return (totalPlays(b)-totalPlays(a)) || a.sortName.localeCompare(b.sortName);
+    default: return a.sortName.localeCompare(b.sortName, undefined, {sensitivity:'base'});
+  }
+}
+
+function coverHtml(g){ return g.thumbnail
+  ? `<img class="cover" loading="lazy" src="${esc(g.thumbnail)}" alt="" onerror="this.classList.add('broken')">`
+  : `<div class="cover ph">${esc(initialOf(g))}</div>`; }
+function cardHtml(g, kidCount){
+  const tp=totalPlays(g), rm=!!g.removed, pd=!!g.pending;
+  const badge = rm? '<span class="badge gone">Removed</span>'
+              : pd? '<span class="badge pending">Pending</span>'
+              : (isExp(g)?'<span class="badge exp">Exp</span>':'');
+  const sub = rm
+    ? `<span title="${esc(g.removedNote||'')}">${esc(g.removedNote||'Removed')}</span><span class="idxbadge">${esc(g.removedDate||'')}</span>`
+    : pd
+    ? `<span title="${esc(g.pendingNote||'')}">${esc(g.pendingNote||'On the way')}</span><span class="idxbadge">${esc(g.pendingDate||'')}</span>`
+    : `<span>${esc(g.year||'')}</span><span class="pcount ${tp?'':'zero'}">${tp} ${tp===1?'play':'plays'}</span>`;
+  return `<div class="card ${rm?'removed':''} ${pd?'pending':''}" data-id="${g.id}">
+    ${badge}
+    ${g.copies>1&&!rm&&!pd?`<span class="copies">×${g.copies}</span>`:''}
+    ${coverHtml(g)}
+    <div class="meta">
+      <div class="name" title="${esc(g.name)}">${esc(g.name)}</div>
+      <div class="sub">${sub}</div>
+      ${kidCount?`<div class="exp-toggle" data-id="${g.id}">${expandedBases.has(g.id)?'▾ hide expansions':'▸ '+kidCount+' expansion'+(kidCount>1?'s':'')}</div>`:''}
+    </div>
+  </div>`;
+}
+function miniHtml(g){
+  return `<div class="mini" data-id="${g.id}" title="${esc(g.name)}">
+    ${g.thumbnail?`<img src="${esc(g.thumbnail)}" alt="" onerror="this.style.visibility='hidden'">`:`<div class="mph">${esc(initialOf(g))}</div>`}
+    <span>${esc(g.name)}</span></div>`;
+}
+function toggleBase(id){ expandedBases.has(id)? expandedBases.delete(id) : expandedBases.add(id); renderGrid(); }
+function renderGrid(){
+  const grid=$('#grid'), empty=$('#empty');
+  if(!games.length){
+    grid.innerHTML=''; empty.style.display='';
+    empty.innerHTML = `<h3>No collection yet</h3><p>Import your BoardGameGeek collection to get started.</p><p><button class="primary" onclick="openImport()">Import from BGG</button> &nbsp; <button class="ghost" onclick="loadSample()">Explore with sample data</button></p>`;
+    return;
+  }
+  const q=state.q.toLowerCase();
+  const grouped = state.group && !q && state.filter!=='exp' && state.filter!=='removed';
+  let list = games.filter(g=>passesFilter(g) && (!q || g.name.toLowerCase().includes(q)));
+  let kidsOf={};
+  if(grouped){
+    const idset=new Set(list.map(g=>g.id));
+    for(const g of list){ if(isExp(g) && g.parentId && idset.has(g.parentId)){ (kidsOf[g.parentId]=kidsOf[g.parentId]||[]).push(g); } }
+    list = list.filter(g=> !(isExp(g) && g.parentId && idset.has(g.parentId)));
+    for(const k in kidsOf) kidsOf[k].sort(sorter);
+  }
+  list.sort(sorter);
+  if(!list.length){ empty.style.display=''; empty.innerHTML='<p>Nothing matches that filter.</p>'; grid.innerHTML=''; return; }
+  empty.style.display='none';
+  const html=[];
+  for(const g of list){
+    const kids = grouped? (kidsOf[g.id]||[]) : [];
+    html.push(cardHtml(g, kids.length));
+    if(kids.length && expandedBases.has(g.id)) html.push(`<div class="cascade">${kids.map(miniHtml).join('')}</div>`);
+  }
+  grid.innerHTML = html.join('');
+}
+
+/* ---------- Detail modal ---------- */
+function openDetail(id){
+  const g=gameById(id); if(!g) return;
+  const tp=totalPlays(g);
+  const children = games.filter(x=>x.parentId===g.id && isExp(x));
+  const gplays = plays.filter(p=>p.gameId===id).sort((a,b)=>b.date.localeCompare(a.date));
+  $('#detailModal').innerHTML = `
+    <div class="head">
+      ${(g.image||g.thumbnail)? `<img src="${esc(g.image||g.thumbnail)}" alt="" onerror="this.classList.add('broken')">` : `<div class="ph" style="background:var(--chip);display:flex;align-items:center;justify-content:center;color:var(--muted)">${esc(initialOf(g))}</div>`}
+      <div>
+        <h2>${esc(g.name)}</h2>
+        <div class="kv">${esc(g.year||'')} ${g.copies>1?'· <b>'+g.copies+' copies</b>':''}</div>
+        <div class="kv"><b>${tp}</b> ${tp===1?'play':'plays'} ${g.bggPlays?`<span class="hint">(${g.bggPlays} from BGG + ${localPlays(g.id)} logged here)</span>`:''}</div>
+        ${g.comment?`<div class="kv">“${esc(g.comment)}”</div>`:''}
+        <div class="kv"><a class="bgg" href="https://boardgamegeek.com/boardgame/${g.id}" target="_blank" rel="noopener">↗ View on BoardGameGeek</a></div>
+        ${g.removed?`<div class="kv" style="color:#dc2626">✂ Removed${g.removedDate?' · '+esc(g.removedDate):''}${g.removedNote?' · “'+esc(g.removedNote)+'”':''}</div>`:''}
+        ${g.pending?`<div class="kv" style="color:var(--accent)">🚚 Pending${g.pendingDate?' · expected '+esc(g.pendingDate):''}${g.pendingNote?' · “'+esc(g.pendingNote)+'”':''}</div>`:''}
+      </div>
+      <button class="close ghost" onclick="closeOverlay('detailOverlay')">✕</button>
+    </div>
+    <div class="body">
+      <div class="row">
+        <button class="primary" onclick="openPlay('${g.id}')">＋ Log a play</button>
+        <button class="ghost" onclick="toggleExp('${g.id}')">${isExp(g)?'Mark as base game':'Mark as expansion'}</button>
+        <button class="ghost" onclick="setCover('${g.id}')">${(g.image||g.thumbnail)?'Change cover':'Add cover'}</button>
+        ${g.pending
+          ? `<button class="primary" style="background:var(--played);border-color:var(--played)" onclick="markArrived('${g.id}')">✓ Mark as arrived</button>`
+          : g.removed
+          ? `<button class="ghost" style="color:var(--played)" onclick="restoreGame('${g.id}')">↩ Restore to collection</button>`
+          : `<button class="ghost" style="color:#dc2626" onclick="openRemove('${g.id}')">✂ Remove from collection</button>`}
+      </div>
+      ${isExp(g)?`<div class="mt"><label>Base game</label><div class="row"><span class="hint">${(g.parentId&&gameById(g.parentId))?esc(gameById(g.parentId).name):'Not set (shown standalone)'}</span><button class="ghost" onclick="openParentPicker('${g.id}')">Change base game…</button></div></div>`:''}
+      ${children.length?`<div class="mt"><label>Expansions you own (${children.length})</label><div class="exp-list hint">${children.map(c=>esc(c.name)).join(' · ')}</div></div>`:''}
+      ${gplays.length?`<div class="mt"><label>Logged plays</label>${gplays.map(playRow).join('')}</div>`:''}
+      ${g.removed?`<div class="mt"><a href="#" style="color:#dc2626;font-size:12px" onclick="deleteGame('${g.id}');return false">Delete permanently</a></div>`:''}
+      ${g.pending?`<div class="mt"><a href="#" style="color:#dc2626;font-size:12px" onclick="deleteGame('${g.id}');return false">Cancel / remove from pending</a></div>`:''}
+    </div>`;
+  openOverlay('detailOverlay');
+}
+function playRow(p){
+  return `<div class="play-item"><div class="t">${esc(p.date)}${p.winner?' · 🏆 '+esc(p.winner):''}</div>
+    <div class="d">${p.players?esc(p.players):''}${p.score?' · score '+esc(p.score):''}${p.notes?' · '+esc(p.notes):''}</div></div>`;
+}
+
+/* ---------- Log play ---------- */
+function openPlay(id){
+  const g=gameById(id); if(!g) return;
+  const today=new Date().toISOString().slice(0,10);
+  $('#playModal').innerHTML = `
+    <div class="head"><h2 style="margin:0">Log a play</h2><button class="close ghost" onclick="closeOverlay('playOverlay')">✕</button></div>
+    <div class="body">
+      <div class="kv"><b>${esc(g.name)}</b></div>
+      <div class="form-grid mt">
+        <div><label>Date</label><input type="date" id="p_date" value="${today}"></div>
+        <div><label>Winner</label><input type="text" id="p_winner" placeholder="e.g. Sam"></div>
+        <div class="full"><label>Players (comma separated)</label><input type="text" id="p_players" placeholder="Sam, Alex, Jo"></div>
+        <div><label>Your score</label><input type="text" id="p_score" placeholder="optional"></div>
+        <div><label>Times played</label><input type="text" id="p_qty" value="1"></div>
+        <div class="full"><label>Notes</label><input type="text" id="p_notes" placeholder="optional"></div>
+      </div>
+      <div class="row mt"><button class="primary" onclick="savePlay('${g.id}')">Save play</button></div>
+    </div>`;
+  openOverlay('playOverlay');
+}
+function savePlay(id){
+  const p={ id:'p'+Date.now(), gameId:id,
+    date: $('#p_date').value || new Date().toISOString().slice(0,10),
+    players: $('#p_players').value.trim(), winner: $('#p_winner').value.trim(),
+    score: $('#p_score').value.trim(), notes: $('#p_notes').value.trim(),
+    quantity: Math.max(1, parseInt($('#p_qty').value)||1), ts:Date.now() };
+  plays.push(p); saveLS(LS.plays, plays);
+  closeOverlay('playOverlay'); render();
+  if($('#detailOverlay').classList.contains('open')) openDetail(id);
+  toast('Play logged ✓');
+}
+
+/* ---------- Plays view ---------- */
+function renderPlays(){
+  const v=$('#playsView');
+  if(!plays.length){ v.innerHTML='<div class="empty"><h3>No plays logged yet</h3><p>Open any game and tap “Log a play”.</p></div>'; return; }
+  const sorted=[...plays].sort((a,b)=>b.date.localeCompare(a.date)||b.ts-a.ts);
+  const total=plays.reduce((n,p)=>n+(p.quantity||1),0);
+  const uniq=new Set(plays.map(p=>p.gameId)).size;
+  const counts={}; plays.forEach(p=>counts[p.gameId]=(counts[p.gameId]||0)+(p.quantity||1));
+  const top=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5)
+    .map(([id,n])=>`${esc((gameById(id)||{}).name||id)} (${n})`).join(' · ');
+  v.innerHTML = `<div class="stats" style="padding:12px 0"><span><b>${total}</b> plays logged</span><span><b>${uniq}</b> games played</span></div>
+    ${top?`<p class="hint">Most logged: ${top}</p>`:''}
+    ${sorted.map(p=>{const g=gameById(p.gameId)||{};return `<div class="play-item">
+      <div class="t">${esc(g.name||'?')} <span class="hint" style="font-weight:400">${esc(p.date)}</span></div>
+      <div class="d">${p.winner?'🏆 '+esc(p.winner)+' · ':''}${p.players?esc(p.players)+' · ':''}${p.score?'score '+esc(p.score)+' · ':''}${(p.quantity||1)>1?'×'+p.quantity+' · ':''}${p.notes?esc(p.notes):''}
+      <a href="#" onclick="delPlay('${p.id}');return false" style="color:#dc2626; margin-left:6px">delete</a></div></div>`;}).join('')}`;
+}
+function delPlay(pid){ plays=plays.filter(p=>p.id!==pid); saveLS(LS.plays,plays); render(); }
+
+/* ---------- Overlays & actions ---------- */
+function openOverlay(id){ $('#'+id).classList.add('open'); }
+function closeOverlay(id){ $('#'+id).classList.remove('open'); }
+function openImport(){ $('#collLink').href='https://boardgamegeek.com/xmlapi2/collection?username='+encodeURIComponent(USERNAME)+'&own=1'; $('#importMsg').textContent=''; openOverlay('importOverlay'); }
+function toggleExp(id){ const g=gameById(id); if(!g)return; g.overrideExpansion=!isExp(g); saveLS(LS.games,games); render(); openDetail(id); }
+
+function loadSample(){
+  const s=`<items><item objectid="342942" subtype="boardgame"><name sortindex="1">Ark Nova</name><yearpublished>2022</yearpublished><image>https://cf.geekdo-images.com/SoU8p28Sk1s8MSvoM4N8pQ__original/img/g4S18szTdrXCdIwVKzMKrZrYAcM=/0x0/filters:format(jpeg)/pic6293412.jpg</image><thumbnail>https://cf.geekdo-images.com/SoU8p28Sk1s8MSvoM4N8pQ__small/img/4KuHNTWSMPf8vTNDKSRMMI3oOv8=/fit-in/200x150/filters:strip_icc()/pic6293412.jpg</thumbnail><status own="1"/><numplays>0</numplays></item>
+  <item objectid="230802" subtype="boardgame"><name sortindex="1">Azul</name><yearpublished>2017</yearpublished><image>https://cf.geekdo-images.com/aPSHJO0d0XOpQR5X-wJonw__original/img/AkbtYVc6xXJF3c9EUrakklcclKw=/0x0/filters:format(png)/pic6973671.png</image><thumbnail>https://cf.geekdo-images.com/aPSHJO0d0XOpQR5X-wJonw__small/img/ccsXKrdGJw-YSClWwzVUwk5Nh9Y=/fit-in/200x150/filters:strip_icc()/pic6973671.png</thumbnail><status own="1"/><numplays>0</numplays></item>
+  <item objectid="220308" subtype="boardgame"><name sortindex="1">Gaia Project</name><yearpublished>2017</yearpublished><image>https://cf.geekdo-images.com/hGWFm3hbMlCDsfCsauOQ4g__original/img/tjlflQtUPFiTpLpwk1NCVCS29Ic=/0x0/filters:format(png)/pic5375625.png</image><thumbnail>https://cf.geekdo-images.com/hGWFm3hbMlCDsfCsauOQ4g__small/img/NNG7Ijyx4evp5gcVReis9i0koas=/fit-in/200x150/filters:strip_icc()/pic5375625.png</thumbnail><status own="1"/><numplays>1</numplays></item>
+  <item objectid="237182" subtype="boardgame"><name sortindex="1">Root</name><yearpublished>2018</yearpublished><image>https://cf.geekdo-images.com/JUAUWaVUzeBgzirhZNmHHw__original/img/E0s2LvtFA1L5YKk-_44D4u2VD2s=/0x0/filters:format(jpeg)/pic4254509.jpg</image><thumbnail>https://cf.geekdo-images.com/JUAUWaVUzeBgzirhZNmHHw__small/img/ACovMZzGGIsBRyEQXFnsT8282NM=/fit-in/200x150/filters:strip_icc()/pic4254509.jpg</thumbnail><status own="1"/><numplays>0</numplays></item>
+  <item objectid="241386" subtype="boardgame"><name sortindex="1">Root: The Riverfolk Expansion</name><yearpublished>2018</yearpublished><image>https://cf.geekdo-images.com/durhzLYyIypxg7CuVYe82Q__original/img/xrLTlVUWtteTsoXmYLM2KM190DE=/0x0/filters:format(jpeg)/pic4252654.jpg</image><thumbnail>https://cf.geekdo-images.com/durhzLYyIypxg7CuVYe82Q__small/img/VianPUKU3XkBGeiqRm6x2IyeMGA=/fit-in/200x150/filters:strip_icc()/pic4252654.jpg</thumbnail><status own="1"/><numplays>0</numplays></item>
+  <item objectid="169786" subtype="boardgame"><name sortindex="1">Scythe</name><yearpublished>2016</yearpublished><image>https://cf.geekdo-images.com/7k_nOxpO9OGIjhLq2BUZdA__original/img/HlDb9F365w0tSP8uD1vf1pfniQE=/0x0/filters:format(jpeg)/pic3163924.jpg</image><thumbnail>https://cf.geekdo-images.com/7k_nOxpO9OGIjhLq2BUZdA__small/img/eQ69OEDdjYjfKg6q5Navee87skU=/fit-in/200x150/filters:strip_icc()/pic3163924.jpg</thumbnail><status own="1"/><numplays>5</numplays></item>
+  <item objectid="178900" subtype="boardgame"><name sortindex="1">Codenames</name><yearpublished>2015</yearpublished><image>https://cf.geekdo-images.com/nC6ifPCDnAItwoKSKXVrnw__original/img/Id-jjIer_61ZbvI2_RVRCeBZFY4=/0x0/filters:format(jpeg)/pic8907965.jpg</image><thumbnail>https://cf.geekdo-images.com/nC6ifPCDnAItwoKSKXVrnw__small/img/1iZav_8ZqurrDbvkZA9GcFhB5x0=/fit-in/200x150/filters:strip_icc()/pic8907965.jpg</thumbnail><status own="1"/><numplays>20</numplays></item>
+  <item objectid="284083" subtype="boardgame"><name sortindex="5">The Crew: The Quest for Planet Nine</name><yearpublished>2019</yearpublished><image>https://cf.geekdo-images.com/98LnQShydr11OBKS46xY-Q__original/img/Q-ZkgnuBu9OTBr7J3qnqPjqamAE=/0x0/filters:format(jpeg)/pic5687013.jpg</image><thumbnail>https://cf.geekdo-images.com/98LnQShydr11OBKS46xY-Q__small/img/et-fnuozyOdBOVL-5kSS3_7I8fw=/fit-in/200x150/filters:strip_icc()/pic5687013.jpg</thumbnail><status own="1"/><numplays>0</numplays></item></items>`;
+  importCollection(s); toast('Loaded sample data — Import to replace with your real collection');
+}
+
+/* ---------- Backup / CSV ---------- */
+function download(name, text, type){ const b=new Blob([text],{type:type||'text/plain'}); const u=URL.createObjectURL(b);
+  const a=document.createElement('a'); a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u); }
+function backup(){ download('boardgames-backup-'+new Date().toISOString().slice(0,10)+'.json',
+  JSON.stringify({games,plays,meta,settings:{syncUrl:getSyncUrl(),group:!!state.group},version:2},null,2),'application/json'); }
+function csvEscape(s){ s=(s??'').toString(); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
+function exportCSV(){
+  const rows=[['Name','Year','Type','Status','RemovedNote','RemovedDate','Copies','TotalPlays','Comment','BGGid']];
+  games.slice().sort(sorter).forEach(g=>rows.push([g.name,g.year,isExp(g)?'Expansion':'Game',g.removed?'Removed':g.pending?'Pending':'Owned',g.removedNote||g.pendingNote||'',g.removedDate||g.pendingDate||'',g.copies,totalPlays(g),g.comment,g.id]));
+  download('boardgames.csv', rows.map(r=>r.map(csvEscape).join(',')).join('\n'),'text/csv');
+}
+function restore(file){ const r=new FileReader(); r.onload=()=>{ try{ const d=JSON.parse(r.result);
+  if(d.games) games=d.games; if(d.plays) plays=d.plays; if(d.meta) meta=d.meta;
+  if(d.settings){ if(d.settings.syncUrl) localStorage.setItem(LS_SYNC, d.settings.syncUrl);
+    if('group' in d.settings){ state.group=!!d.settings.group; localStorage.setItem('bgg_group', state.group?'1':'0'); $('#groupBtn').classList.toggle('on', state.group); } }
+  saveLS(LS.games,games); saveLS(LS.plays,plays); saveLS(LS.meta,meta); closeOverlay('menuOverlay'); render(); toast('Backup restored ✓');
+  }catch(e){ toast('Could not read that backup file.'); } }; r.readAsText(file); }
+
+/* ---------- Remove / restore from collection ---------- */
+function openRemove(id){
+  const g=gameById(id); if(!g) return;
+  const today=new Date().toISOString().slice(0,10);
+  $('#removeModal').innerHTML = `
+    <div class="head"><h2 style="margin:0">Remove from collection</h2><button class="close ghost" onclick="closeOverlay('removeOverlay')">✕</button></div>
+    <div class="body">
+      <div class="kv"><b>${esc(g.name)}</b> moves to your Removed list — you can restore it anytime.</div>
+      <label class="mt">Quick reason</label>
+      <div class="row" id="rmChips">${['Sold','Gifted','Traded','Lost','Culled'].map(r=>`<span class="chip" data-r="${r}">${r}</span>`).join('')}</div>
+      <label>Note (e.g. “Sold £20”, “Given to Declan”)</label>
+      <input type="text" id="rm_note" placeholder="optional">
+      <label>Date</label>
+      <input type="date" id="rm_date" value="${today}">
+      <div class="row mt"><button class="primary" style="background:#dc2626;border-color:#dc2626" onclick="confirmRemove('${g.id}')">Remove</button><button class="ghost" onclick="closeOverlay('removeOverlay')">Cancel</button></div>
+    </div>`;
+  openOverlay('removeOverlay');
+  $('#rmChips').addEventListener('click', e=>{ const c=e.target.closest('.chip'); if(!c) return;
+    const note=$('#rm_note'); note.value = note.value.trim()? note.value : c.dataset.r;
+    $$('#rmChips .chip').forEach(x=>x.classList.remove('active')); c.classList.add('active'); note.focus(); });
+}
+function confirmRemove(id){ const g=gameById(id); if(!g) return;
+  g.removed=true; g.removedNote=$('#rm_note').value.trim(); g.removedDate=$('#rm_date').value || new Date().toISOString().slice(0,10);
+  saveLS(LS.games,games); closeOverlay('removeOverlay'); closeOverlay('detailOverlay'); render(); toast('Removed “'+g.name+'”'); }
+function restoreGame(id){ const g=gameById(id); if(!g) return;
+  delete g.removed; delete g.removedNote; delete g.removedDate; saveLS(LS.games,games); render(); openDetail(id); toast('Restored “'+g.name+'”'); }
+function deleteGame(id){ const g=gameById(id); if(!g) return;
+  if(!confirm('Permanently delete “'+g.name+'” and its logged plays? This cannot be undone.')) return;
+  games=games.filter(x=>x.id!==id); plays=plays.filter(p=>p.gameId!==id);
+  saveLS(LS.games,games); saveLS(LS.plays,plays); closeOverlay('detailOverlay'); render(); toast('Deleted “'+g.name+'”'); }
+
+/* ---------- Google Sheet sync ---------- */
+const LS_SYNC = 'bgg_sync_url';
+function getSyncUrl(){ return (localStorage.getItem(LS_SYNC)||'').trim(); }
+function payloadForSheet(){
+  return {
+    action:'save', meta:meta,
+    games: games.map(g=>Object.assign({}, g, { __plays: totalPlays(g), __type: isExp(g)?'Expansion':'Game' })),
+    plays: plays.map(p=>Object.assign({}, p, { __gameName:(gameById(p.gameId)||{}).name||'' }))
+  };
+}
+async function pushSheet(){
+  const url=getSyncUrl(); if(!url){ $('#syncMsg').textContent='Paste your Web app URL and click Save URL first.'; return; }
+  $('#syncMsg').textContent='Pushing to your Google Sheet…';
+  try{
+    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payloadForSheet())});
+    const data=await res.json();
+    if(data && data.ok!==false){ $('#syncMsg').textContent='Pushed '+(data.count!=null?data.count+' games ':'')+'to your Google Sheet ✓'; toast('Pushed to Google Sheet ✓'); }
+    else throw new Error((data&&data.error)||'Unknown error');
+  }catch(e){ $('#syncMsg').textContent='Push failed: '+e.message+'. Check the URL, and that the deployment’s access is set to “Anyone”.'; }
+}
+async function pullSheet(){
+  const url=getSyncUrl(); if(!url){ $('#syncMsg').textContent='Paste your Web app URL and click Save URL first.'; return; }
+  if(!confirm('Replace the collection and plays in this browser with the copy saved in your Google Sheet?')) return;
+  $('#syncMsg').textContent='Pulling from your Google Sheet…';
+  try{
+    const res=await fetch(url,{method:'GET'});
+    const data=await res.json();
+    if(data && data.games && data.games.length){
+      games=data.games; plays=data.plays||[]; if(data.meta)meta=data.meta;
+      saveLS(LS.games,games); saveLS(LS.plays,plays); saveLS(LS.meta,meta);
+      render(); $('#syncMsg').textContent='Pulled '+games.length+' games ✓'; toast('Pulled from Google Sheet ✓');
+    } else throw new Error('No saved data found in the Sheet yet — Push first.');
+  }catch(e){ $('#syncMsg').textContent='Pull failed: '+e.message; }
+}
+
+/* ---------- Add a game (local BGG games index) ---------- */
+const initialOf = g => ((g.sortName||g.name||'?').trim()[0]||'?').toUpperCase();
+function debounce(fn,ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
+
+// IndexedDB (localStorage is too small for the ~150k-row games list)
+const IDB_NAME='bggIndexDB', IDB_STORE='kv';
+function idbOpen(){ return new Promise((res,rej)=>{ const r=indexedDB.open(IDB_NAME,1);
+  r.onupgradeneeded=()=>r.result.createObjectStore(IDB_STORE); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function idbSet(k,v){ const db=await idbOpen(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).put(v,k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
+async function idbGet(k){ const db=await idbOpen(); return new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readonly'); const rq=tx.objectStore(IDB_STORE).get(k); rq.onsuccess=()=>res(rq.result); rq.onerror=()=>rej(rq.error); }); }
+
+let gameIndex=[]; // {id,name,year,exp}
+function buildExpansionFlags(){ expansionFlagById={}; for(const it of gameIndex){ expansionFlagById[it.id]=!!it.exp; } }
+function applyExpansionSplit(silent){
+  if(!expansionFlagById || !games.length) return;
+  detectExpansions(games);            // reclassifies using the authoritative flags (skips your manual choices)
+  saveLS(LS.games, games); render();
+  if(!silent) toast('Expansion classification updated from BGG data — '+games.filter(g=>isExp(g)).length+' expansions ✓');
+}
+function parseCsvLine(line){ const out=[]; let cur='',q=false;
+  for(let i=0;i<line.length;i++){ const c=line[i];
+    if(q){ if(c==='"'){ if(line[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else { if(c===','){out.push(cur);cur='';} else if(c==='"'){q=true;} else cur+=c; } }
+  out.push(cur); return out; }
+function parseGamesCsv(text){
+  const lines=text.split(/\r?\n/).filter(l=>l.length);
+  if(!lines.length) throw new Error('That file looks empty.');
+  const header=parseCsvLine(lines[0]).map(h=>h.trim().toLowerCase());
+  const idI=header.indexOf('id'), nameI=header.indexOf('name');
+  const yearI=header.indexOf('yearpublished')>=0?header.indexOf('yearpublished'):header.indexOf('year');
+  const expI=header.indexOf('is_expansion');
+  if(idI<0||nameI<0) throw new Error('This isn’t the BGG games CSV (no id/name columns found).');
+  const arr=[];
+  for(let i=1;i<lines.length;i++){ const f=parseCsvLine(lines[i]); const id=(f[idI]||'').trim(); const name=(f[nameI]||'').trim();
+    if(!id||!name) continue;
+    arr.push({ id, name, year:yearI>=0?(f[yearI]||'').trim():'', exp:expI>=0?(f[expI]||'').trim()==='1':false }); }
+  return arr;
+}
+async function loadIndexFile(file){
+  $('#indexMsg').textContent='Reading… (large file, one moment)';
+  let text; try{ text=await file.text(); }catch(e){ $('#indexMsg').textContent='Could not read that file.'; return; }
+  let arr; try{ arr=parseGamesCsv(text); }catch(e){ $('#indexMsg').textContent=e.message; return; }
+  gameIndex=arr; try{ await idbSet('gamesIndex', arr); }catch(e){}
+  buildExpansionFlags();
+  localStorage.setItem('bgg_index_meta', JSON.stringify({count:arr.length, at:new Date().toISOString()}));
+  updateIndexUI(); $('#indexMsg').textContent='Loaded '+arr.length.toLocaleString()+' games — you can search now.'; searchAdd();
+  applyExpansionSplit(false);
+}
+async function loadIndexFromDB(){ try{ const arr=await idbGet('gamesIndex'); if(arr&&arr.length){ gameIndex=arr; buildExpansionFlags(); updateIndexUI(); applyExpansionSplit(true); } }catch(e){} }
+function updateIndexUI(){ const m=gameIndex.length;
+  $('#indexCount').textContent = m? m.toLocaleString()+' games searchable' : 'No games list loaded — search covers your own collection only';
+  $('#indexArea').style.display = m?'none':'block'; }
+
+function searchAdd(){
+  const q=$('#addSearch').value.trim().toLowerCase(); const box=$('#addResults');
+  if(q.length<2){ box.innerHTML = gameIndex.length? '<p class="hint">Type at least 2 letters…</p>':''; return; }
+  const owned=new Set(games.map(g=>g.id));
+  const src = gameIndex.length? gameIndex : games.map(g=>({id:g.id,name:g.name,year:g.year,exp:isExp(g)}));
+  const starts=[], incl=[];
+  for(const it of src){ const n=it.name.toLowerCase();
+    if(n.startsWith(q)) starts.push(it); else if(n.includes(q)) incl.push(it); }
+  const res = starts.sort((a,b)=>a.name.length-b.name.length).concat(incl).slice(0,30);
+  box.innerHTML = res.length ? res.map(it=>`<div class="result" data-id="${esc(it.id)}" data-name="${esc(it.name)}" data-year="${esc(it.year||'')}" data-exp="${it.exp?1:0}">
+      <div><div style="font-weight:600;font-size:14px">${esc(it.name)}</div>
+      <div class="idxbadge">BGG #${esc(it.id)}${it.exp?' · expansion':''}${owned.has(it.id)?' · <b>already added</b>':''}</div></div>
+      <span class="yr">${esc(it.year||'')}</span></div>`).join('')
+    : '<p class="hint">No matches — add it manually below.</p>';
+}
+function addGame({id,name,year,exp,image}){
+  name=(name||'').trim(); if(!name){ $('#addMsg').textContent='Enter a game name.'; return; }
+  if(id && games.some(g=>g.id===id)){ toast('“'+name+'” is already in your collection'); return; }
+  const g={ id:id||('m'+Date.now()), name, sortName:computeSort(name,1), year:year||'', image:image||'', thumbnail:image||'',
+    comment:'', own:true, fortrade:false, bggPlays:0, copies:1, addedManually:true };
+  if(exp) g.overrideExpansion=true;
+  const pendEl=$('#addPending');
+  if(pendEl && pendEl.checked){ g.pending=true; g.pendingNote=($('#addPendingNote').value||'').trim(); }
+  games.push(g); detectExpansions(games);
+  if(exp) g.overrideExpansion=true;   // detectExpansions may reset; isExp() honours the override
+  saveLS(LS.games, games); render();
+  toast((g.pending?'Added to pending: “':'Added “')+name+'” ✓'); closeOverlay('addOverlay');
+}
+function markArrived(id){ const g=gameById(id); if(!g) return;
+  delete g.pending; delete g.pendingNote; delete g.pendingDate;
+  saveLS(LS.games,games); render(); openDetail(id); toast('“'+g.name+'” marked as arrived 🎉'); }
+function manualAdd(){
+  addGame({ id:$('#m_id').value.trim(), name:$('#m_name').value, year:$('#m_year').value.trim(), image:$('#m_image').value.trim(), exp:false });
+  ['m_name','m_year','m_id','m_image'].forEach(k=>$('#'+k).value='');
+}
+function setCover(id){ const g=gameById(id); if(!g) return;
+  const url=prompt('Paste an image URL for the cover.\n(Tip: on the BGG game page, right-click the cover → “Copy image address”.)', g.image||g.thumbnail||'');
+  if(url===null) return; const u=url.trim(); g.thumbnail=u; g.image=u; g.coverManual=true; saveLS(LS.games,games); render(); openDetail(id); }
+
+/* ---------- Base-game (expansion parent) picker ---------- */
+function openParentPicker(childId){
+  const child=gameById(childId); if(!child) return;
+  const cur=child.parentId;
+  const bases=games.filter(g=>g.id!==childId && !g.removed && !g.pending && !isExp(g)).sort(sorter);
+  $('#parentModal').innerHTML = `
+    <div class="head"><h2 style="margin:0">Base game for “${esc(child.name)}”</h2><button class="close ghost" onclick="closeOverlay('parentOverlay')">✕</button></div>
+    <div class="body">
+      <input type="search" id="parentSearch" placeholder="Search base games…" style="width:100%" autocomplete="off">
+      <div id="parentList" style="margin-top:10px;max-height:340px;overflow:auto">
+        <div class="result" data-pid=""><div><b>None</b> — it’s a standalone / base game${!cur?' ✓':''}</div></div>
+        ${bases.map(b=>`<div class="result" data-pid="${b.id}"><div style="font-weight:600">${esc(b.name)}${b.id===cur?' ✓':''}</div><span class="yr">${esc(b.year||'')}</span></div>`).join('')}
+      </div>
+    </div>`;
+  openOverlay('parentOverlay');
+  $('#parentSearch').addEventListener('input', ()=>{ const q=$('#parentSearch').value.toLowerCase();
+    $$('#parentList .result').forEach(r=>{ r.style.display = (!q || r.textContent.toLowerCase().includes(q))?'':'none'; }); });
+  $('#parentList').addEventListener('click', e=>{ const r=e.target.closest('.result'); if(!r) return; setParent(childId, r.dataset.pid||null); });
+  setTimeout(()=>$('#parentSearch').focus(),50);
+}
+function setParent(childId, parentId){
+  const g=gameById(childId); if(!g) return;
+  g.parentManual=true;
+  if(parentId){ g.parentId=parentId; g.overrideExpansion=true; }
+  else { g.parentId=null; g.overrideExpansion=false; }
+  saveLS(LS.games,games); closeOverlay('parentOverlay'); render(); openDetail(childId);
+  toast(parentId? 'Base game set: '+((gameById(parentId)||{}).name||'') : 'Marked as standalone');
+}
+
+/* ---------- Toast ---------- */
+let toastT; function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2600); }
+
+/* ---------- Events ---------- */
+$('#search').addEventListener('input', e=>{ state.q=e.target.value; renderGrid(); });
+$('#sort').addEventListener('change', e=>{ state.sort=e.target.value; renderGrid(); });
+$('#groupBtn').classList.toggle('on', state.group);
+$('#groupBtn').addEventListener('click', ()=>{ state.group=!state.group; localStorage.setItem('bgg_group', state.group?'1':'0'); $('#groupBtn').classList.toggle('on', state.group); expandedBases.clear(); renderGrid(); });
+$('#chips').addEventListener('click', e=>{ const c=e.target.closest('.chip'); if(!c)return; state.filter=c.dataset.f; render(); });
+$('#viewseg').addEventListener('click', e=>{ const b=e.target.closest('button'); if(!b)return; state.view=b.dataset.view; render(); });
+$('#grid').addEventListener('click', e=>{
+  const tog=e.target.closest('.exp-toggle'); if(tog){ toggleBase(tog.dataset.id); return; }
+  const mini=e.target.closest('.mini'); if(mini){ openDetail(mini.dataset.id); return; }
+  const c=e.target.closest('.card'); if(c) openDetail(c.dataset.id);
+});
+$('#importBtn').addEventListener('click', openImport);
+$('#addBtn').addEventListener('click', ()=>{ updateIndexUI(); $('#addSearch').value=''; $('#addResults').innerHTML=''; $('#addMsg').textContent=''; $('#indexMsg').textContent=''; $('#addPending').checked=false; $('#addPendingNote').style.display='none'; $('#addPendingNote').value=''; openOverlay('addOverlay'); setTimeout(()=>$('#addSearch').focus(),50); });
+$('#addPending').addEventListener('change', e=>{ $('#addPendingNote').style.display = e.target.checked?'block':'none'; });
+$('#addSearch').addEventListener('input', debounce(searchAdd,150));
+$('#addResults').addEventListener('click', e=>{ const r=e.target.closest('.result'); if(!r) return; addGame({id:r.dataset.id, name:r.dataset.name, year:r.dataset.year, exp:r.dataset.exp==='1'}); });
+$('#indexFile').addEventListener('change', e=>{ if(e.target.files[0]) loadIndexFile(e.target.files[0]); });
+$('#m_addBtn').addEventListener('click', manualAdd);
+$('#menuBtn').addEventListener('click', ()=>{ $('#syncUrl').value=getSyncUrl(); $('#syncMsg').textContent=''; openOverlay('menuOverlay'); });
+$('#syncSaveBtn').addEventListener('click', ()=>{ localStorage.setItem(LS_SYNC, $('#syncUrl').value.trim()); $('#syncMsg').textContent = getSyncUrl()? 'URL saved ✓' : 'URL cleared.'; });
+$('#pushBtn').addEventListener('click', pushSheet);
+$('#pullBtn').addEventListener('click', pullSheet);
+$('#reimportBtn').addEventListener('click', ()=>{ closeOverlay('menuOverlay'); openImport(); });
+$('#doImport').addEventListener('click', ()=>{ try{ const n=importCollection($('#xmlInput').value); closeOverlay('importOverlay'); $('#xmlInput').value=''; }catch(err){ $('#importMsg').textContent=err.message; } });
+$('#fileInput').addEventListener('change', e=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ try{ importCollection(r.result); closeOverlay('importOverlay'); }catch(err){ $('#importMsg').textContent=err.message; } }; r.readAsText(f); });
+$('#backupBtn').addEventListener('click', backup);
+$('#csvBtn').addEventListener('click', exportCSV);
+$('#restoreInput').addEventListener('change', e=>{ if(e.target.files[0]) restore(e.target.files[0]); });
+$('#clearBtn').addEventListener('click', ()=>{ if(confirm('Delete the collection AND play log from this browser? Download a backup first if unsure.')){ games=[];plays=[];meta={}; saveLS(LS.games,games);saveLS(LS.plays,plays);saveLS(LS.meta,meta); closeOverlay('menuOverlay'); render(); } });
+$$('[data-close]').forEach(b=>b.addEventListener('click', ()=>b.closest('.overlay').classList.remove('open')));
+$$('.overlay').forEach(o=>o.addEventListener('click', e=>{ if(e.target===o) o.classList.remove('open'); }));
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') $$('.overlay').forEach(o=>o.classList.remove('open')); });
+
+render();
+loadIndexFromDB();
+if(!games.length) openImport();
+</script>
+</body>
+</html>
