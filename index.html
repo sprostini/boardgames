@@ -649,32 +649,61 @@ function buildShareData(withCovers){
 }
 async function shareCollection(){
   if(location.protocol==='file:'){ $('#shareMsg').textContent='Open the app at its web address (github.io) to make a shareable link — a local-file link won’t open on another device.'; return; }
-  $('#shareMsg').textContent='Building link…';
-  let data=buildShareData(true), payload=await encodeShare(data), lite=false;
-  let url=location.origin+location.pathname+'#share='+payload;
-  if(url.length>90000){ data=buildShareData(false); payload=await encodeShare(data); url=location.origin+location.pathname+'#share='+payload; lite=true; }
-  const kb=(url.length/1024).toFixed(1), note=lite?' (covers left out to keep it small)':'';
-  const title=data.o+'’s board games', text=title+' — '+data.g.length+' games. Tap to browse:';
+  const sync=getSyncUrl();
+  let url, note='';
+  if(sync){
+    // Short, robust link: the viewer pulls your collection live from your Google Sheet.
+    url=location.origin+location.pathname+'#s='+b64urlFromBytes(new TextEncoder().encode(sync));
+    note=' It’s a small live link (updates as you add games). It reaches your Sheet, so share it only with people you trust.';
+  } else {
+    // No sync set up: embed a snapshot in the link (drop covers if it would get too long to survive messaging).
+    $('#shareMsg').textContent='Building link…';
+    let data=buildShareData(true), payload=await encodeShare(data);
+    url=location.origin+location.pathname+'#share='+payload;
+    if(url.length>12000){ data=buildShareData(false); payload=await encodeShare(data); url=location.origin+location.pathname+'#share='+payload; note=' (covers left out so the link stays short enough to send)'; }
+  }
+  const title=(meta.username||'My')+'’s board games', text=title+' — tap to browse:';
   if(navigator.share){ try{ await navigator.share({title, text, url}); $('#shareMsg').textContent='Shared ✓'+note; return; }catch(e){ if(e&&e.name==='AbortError'){ $('#shareMsg').textContent='Share cancelled.'; return; } } }
-  try{ await navigator.clipboard.writeText(url); $('#shareMsg').textContent='Link copied ('+kb+' KB) — paste it to your friend.'+note; }
+  try{ await navigator.clipboard.writeText(url); $('#shareMsg').textContent='Link copied — paste it to your friend.'+note; }
   catch(e){ $('#shareMsg').innerHTML='Copy this link:<br><textarea style="width:100%;min-height:70px" onclick="this.select()">'+esc(url)+'</textarea>'; }
 }
 function enterSharedUI(){
   ['#addBtn','#importBtn','#menuBtn','#viewseg'].forEach(s=>{ const el=$(s); if(el) el.style.display='none'; });
-  const b=$('.brand'); if(b) b.innerHTML='🎲 '+esc(shareOwner)+'’s games <small>· shared, read-only</small>';
-  document.title=shareOwner+'’s board games';
+  const b=$('.brand'); if(b) b.innerHTML=(shareOwner? '🎲 '+esc(shareOwner)+'’s games' : '🎲 Shared collection')+' <small>· read-only</small>';
+  document.title=(shareOwner? shareOwner+'’s board games' : 'Shared board games');
 }
 async function maybeEnterShareMode(){
-  const m=(location.hash||'').match(/^#share=(.+)$/); if(!m) return false;
+  const hs=location.hash||'';
+  const ms=hs.match(/^#s=(.+)$/), me=hs.match(/^#share=(.+)$/);
+  if(!ms && !me) return false;
+  SHARED=true; enterSharedUI();
+  if(ms){
+    const grid=$('#grid'); if(grid) grid.innerHTML='<div class="empty">Loading collection…</div>';
+    try{
+      const sync=new TextDecoder().decode(bytesFromB64url(ms[1]));
+      const res=await fetch(sync,{method:'GET'});
+      const data=await readSyncJson(res);
+      const owned=(data.games||[]).filter(g=>!g.removed && !g.pending);
+      if(!owned.length) throw new Error('empty');
+      shareOwner=(data.meta&&data.meta.username)||'Shared';
+      games=owned; plays=[]; meta={username:shareOwner};
+      enterSharedUI(); render();
+    }catch(e){
+      const grid=$('#grid'); if(grid) grid.innerHTML='<div class="empty"><h3>Couldn’t load this collection</h3><p>The owner’s collection isn’t reachable right now — ask them to check it’s been pushed to their Sheet, then reopen the link.</p></div>';
+    }
+    return true;
+  }
   try{
-    const data=await decodeShare(m[1]);
-    SHARED=true; shareOwner=data.o||'Shared';
+    const data=await decodeShare(me[1]);
+    shareOwner=data.o||'Shared';
     games=(data.g||[]).map((x,i)=>({ id:x.d||('s'+i), name:x.n, sortName:computeSort(x.n,1), thumbnail:x.i||'', image:x.i||'', year:x.y||'', comment:x.c||'', overrideExpansion:!!x.e, own:true, bggPlays:0, copies:1 }));
     plays=[]; meta={username:shareOwner};
     detectExpansions(games);
     enterSharedUI(); render();
-    return true;
-  }catch(e){ return false; }
+  }catch(e){
+    const grid=$('#grid'); if(grid) grid.innerHTML='<div class="empty"><h3>Couldn’t open this shared collection</h3><p>The link looks incomplete — it may have been cut off when sent. Ask for a fresh link.</p></div>';
+  }
+  return true;
 }
 function csvEscape(s){ s=(s??'').toString(); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
 function exportCSV(){
@@ -959,7 +988,7 @@ $$('.overlay').forEach(o=>o.addEventListener('click', e=>{ if(e.target===o) o.cl
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') $$('.overlay').forEach(o=>o.classList.remove('open')); });
 
 (async function init(){
-  if(location.hash.indexOf('#share=')===0){ if(await maybeEnterShareMode()) return; }
+  if(location.hash.indexOf('#share=')===0 || location.hash.indexOf('#s=')===0){ if(await maybeEnterShareMode()) return; }
   render();
   loadIndexFromDB();
   if(!games.length) openImport();
