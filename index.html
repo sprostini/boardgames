@@ -171,6 +171,12 @@
   <div class="modal" style="max-width:440px">
     <div class="head"><h2 style="margin:0">Backup &amp; data</h2><button class="close ghost" data-close>✕</button></div>
     <div class="body">
+      <label style="font-size:13px;color:var(--ink);font-weight:600;margin-top:0">🔗 Share your collection</label>
+      <p class="hint">Make a read-only link a friend can open on their phone to browse your games — handy for picking what to play together. It’s a snapshot; re-share after you add games.</p>
+      <div class="row"><button id="shareBtn" class="primary">🔗 Create share link</button></div>
+      <p class="hint" id="shareMsg"></p>
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+
       <p class="hint">Your collection and play log live in this browser. Download a backup regularly so nothing is lost if the browser is cleared.</p>
       <div class="row"><button id="backupBtn">⬇ Download backup (.json)</button></div>
       <label>Restore from a backup file</label>
@@ -277,6 +283,7 @@ let games = loadLS(LS.games, []);
 let plays = loadLS(LS.plays, []);
 let meta  = loadLS(LS.meta, {});
 let state = { view:'collection', filter:'all', sort:'alpha', q:'', group: localStorage.getItem('bgg_group')==='1' };
+let SHARED = false, shareOwner = '';   // read-only "someone shared their collection with me" mode
 let expandedBases = new Set();
 let expansionFlagById = null;   // id -> is_expansion, from the BGG games CSV (authoritative)
 
@@ -374,7 +381,7 @@ const gameById = id => games.find(g=>g.id===id);
 
 /* ---------- Rendering ---------- */
 function render(){
-  $('#uname').textContent = meta.username? '· '+meta.username : '';
+  const un=$('#uname'); if(un) un.textContent = meta.username? '· '+meta.username : '';
   renderStats(); renderChips();
   $('#collectionView').style.display = state.view==='collection'?'':'none';
   $('#playsView').style.display = state.view==='plays'?'':'none';
@@ -390,9 +397,10 @@ function renderStats(){
   const totPlays = owned.reduce((n,g)=>n+totalPlays(g),0);
   const removed = games.filter(g=>g.removed).length;
   const pending = games.filter(g=>g.pending).length;
-  $('#stats').innerHTML = games.length
-    ? `<span><b>${owned.length}</b> in collection</span><span><b>${bases.length}</b> games</span><span><b>${exps.length}</b> expansions</span><span><b>${played}</b> played</span><span><b>${totPlays}</b> total plays</span>${pending?`<span><b>${pending}</b> on the way</span>`:''}${removed?`<span><b>${removed}</b> removed</span>`:''}`
-    : '';
+  $('#stats').innerHTML = !games.length ? ''
+    : SHARED
+    ? `<span><b>${owned.length}</b> games</span>${exps.length?`<span><b>${exps.length}</b> expansions</span>`:''}`
+    : `<span><b>${owned.length}</b> in collection</span><span><b>${bases.length}</b> games</span><span><b>${exps.length}</b> expansions</span><span><b>${played}</b> played</span><span><b>${totPlays}</b> total plays</span>${pending?`<span><b>${pending}</b> on the way</span>`:''}${removed?`<span><b>${removed}</b> removed</span>`:''}`;
 }
 
 const FILTERS = [['all','All'],['games','Games'],['exp','Expansions'],['played','Played'],['unplayed','Unplayed'],['trade','For trade'],['pending','On the way'],['removed','Removed']];
@@ -438,6 +446,8 @@ function cardHtml(g, kidCount){
     ? `<span title="${esc(g.removedNote||'')}">${esc(g.removedNote||'Removed')}</span><span class="idxbadge">${esc(g.removedDate||'')}</span>`
     : pd
     ? `<span title="${esc(g.pendingNote||'')}">${esc(g.pendingNote||'On the way')}</span><span class="idxbadge">${esc(g.pendingDate||'')}</span>`
+    : SHARED
+    ? `<span>${esc(g.year||'')}</span>`
     : `<span>${esc(g.year||'')}</span><span class="pcount ${tp?'':'zero'}">${tp} ${tp===1?'play':'plays'}</span>`;
   return `<div class="card ${rm?'removed':''} ${pd?'pending':''}" data-id="${g.id}">
     ${badge}
@@ -490,22 +500,9 @@ function openDetail(id){
   const g=gameById(id); if(!g) return;
   const tp=totalPlays(g);
   const children = games.filter(x=>x.parentId===g.id && isExp(x));
-  const gplays = plays.filter(p=>p.gameId===id).sort((a,b)=>b.date.localeCompare(a.date));
-  $('#detailModal').innerHTML = `
-    <div class="head">
-      ${(g.image||g.thumbnail)? `<img src="${esc(g.image||g.thumbnail)}" alt="" onerror="this.classList.add('broken')">` : `<div class="ph" style="background:var(--chip);display:flex;align-items:center;justify-content:center;color:var(--muted)">${esc(initialOf(g))}</div>`}
-      <div>
-        <h2>${esc(g.name)}</h2>
-        <div class="kv">${esc(g.year||'')} ${g.copies>1?'· <b>'+g.copies+' copies</b>':''}</div>
-        <div class="kv"><b>${tp}</b> ${tp===1?'play':'plays'} ${g.bggPlays?`<span class="hint">(${g.bggPlays} from BGG + ${localPlays(g.id)} logged here)</span>`:''}</div>
-        ${g.comment?`<div class="kv">“${esc(g.comment)}”</div>`:''}
-        <div class="kv"><a class="bgg" href="https://boardgamegeek.com/boardgame/${g.id}" target="_blank" rel="noopener">↗ View on BoardGameGeek</a></div>
-        ${g.removed?`<div class="kv" style="color:#dc2626">✂ Removed${g.removedDate?' · '+esc(g.removedDate):''}${g.removedNote?' · “'+esc(g.removedNote)+'”':''}</div>`:''}
-        ${g.pending?`<div class="kv" style="color:var(--accent)">🚚 Pending${g.pendingDate?' · expected '+esc(g.pendingDate):''}${g.pendingNote?' · “'+esc(g.pendingNote)+'”':''}</div>`:''}
-      </div>
-      <button class="close ghost" onclick="closeOverlay('detailOverlay')">✕</button>
-    </div>
-    <div class="body">
+  const gplays = SHARED? [] : plays.filter(p=>p.gameId===id).sort((a,b)=>b.date.localeCompare(a.date));
+  const isBgg = /^\d+$/.test(String(g.id));
+  const editRow = SHARED ? '' : `
       <div class="row">
         <button class="primary" onclick="openPlay('${g.id}')">＋ Log a play</button>
         <button class="ghost" onclick="toggleExp('${g.id}')">${isExp(g)?'Mark as base game':'Mark as expansion'}</button>
@@ -516,11 +513,29 @@ function openDetail(id){
           ? `<button class="ghost" style="color:var(--played)" onclick="restoreGame('${g.id}')">↩ Restore to collection</button><button class="ghost" onclick="openPending('${g.id}')">🚚 Move to pending</button>`
           : `<button class="ghost" style="color:#dc2626" onclick="openRemove('${g.id}')">✂ Remove from collection</button><button class="ghost" onclick="openPending('${g.id}')">🚚 Move to pending</button>`}
       </div>
-      ${isExp(g)?`<div class="mt"><label>Base game</label><div class="row"><span class="hint">${(g.parentId&&gameById(g.parentId))?esc(gameById(g.parentId).name):'Not set (shown standalone)'}</span><button class="ghost" onclick="openParentPicker('${g.id}')">Change base game…</button></div></div>`:''}
-      ${children.length?`<div class="mt"><label>Expansions you own (${children.length})</label><div class="exp-list hint">${children.map(c=>esc(c.name)).join(' · ')}</div></div>`:''}
+      ${isExp(g)?`<div class="mt"><label>Base game</label><div class="row"><span class="hint">${(g.parentId&&gameById(g.parentId))?esc(gameById(g.parentId).name):'Not set (shown standalone)'}</span><button class="ghost" onclick="openParentPicker('${g.id}')">Change base game…</button></div></div>`:''}`;
+  const extras = SHARED ? '' : `
       ${gplays.length?`<div class="mt"><label>Logged plays</label>${gplays.map(playRow).join('')}</div>`:''}
       ${g.removed?`<div class="mt"><a href="#" style="color:#dc2626;font-size:12px" onclick="deleteGame('${g.id}');return false">Delete permanently</a></div>`:''}
-      ${g.pending?`<div class="mt"><a href="#" style="color:#dc2626;font-size:12px" onclick="deleteGame('${g.id}');return false">Cancel / remove from pending</a></div>`:''}
+      ${g.pending?`<div class="mt"><a href="#" style="color:#dc2626;font-size:12px" onclick="deleteGame('${g.id}');return false">Cancel / remove from pending</a></div>`:''}`;
+  $('#detailModal').innerHTML = `
+    <div class="head">
+      ${(g.image||g.thumbnail)? `<img src="${esc(g.image||g.thumbnail)}" alt="" onerror="this.classList.add('broken')">` : `<div class="ph" style="background:var(--chip);display:flex;align-items:center;justify-content:center;color:var(--muted)">${esc(initialOf(g))}</div>`}
+      <div>
+        <h2>${esc(g.name)}</h2>
+        <div class="kv">${esc(g.year||'')} ${g.copies>1?'· <b>'+g.copies+' copies</b>':''}</div>
+        ${SHARED?'':`<div class="kv"><b>${tp}</b> ${tp===1?'play':'plays'} ${g.bggPlays?`<span class="hint">(${g.bggPlays} from BGG + ${localPlays(g.id)} logged here)</span>`:''}</div>`}
+        ${g.comment?`<div class="kv">“${esc(g.comment)}”</div>`:''}
+        ${isBgg?`<div class="kv"><a class="bgg" href="https://boardgamegeek.com/boardgame/${g.id}" target="_blank" rel="noopener">↗ View on BoardGameGeek</a></div>`:''}
+        ${(!SHARED&&g.removed)?`<div class="kv" style="color:#dc2626">✂ Removed${g.removedDate?' · '+esc(g.removedDate):''}${g.removedNote?' · “'+esc(g.removedNote)+'”':''}</div>`:''}
+        ${(!SHARED&&g.pending)?`<div class="kv" style="color:var(--accent)">🚚 Pending${g.pendingDate?' · expected '+esc(g.pendingDate):''}${g.pendingNote?' · “'+esc(g.pendingNote)+'”':''}</div>`:''}
+      </div>
+      <button class="close ghost" onclick="closeOverlay('detailOverlay')">✕</button>
+    </div>
+    <div class="body">
+      ${editRow}
+      ${children.length?`<div class="mt"><label>Expansions${SHARED?'':' you own'} (${children.length})</label><div class="exp-list hint">${children.map(c=>esc(c.name)).join(' · ')}</div></div>`:''}
+      ${extras}
     </div>`;
   openOverlay('detailOverlay');
 }
@@ -614,6 +629,52 @@ function applyArtwork(){
   let map; try{ map=JSON.parse($('#artMap').value); }catch(e){ $('#artMsg').textContent='That doesn’t look like valid JSON.'; return; }
   let n=0; for(const g of games){ const u=map[g.id]; if(u){ g.thumbnail=u; g.image=u; n++; } }
   saveLS(LS.games,games); render(); $('#artMap').value=''; $('#artMsg').textContent='Filled artwork for '+n+' game'+(n===1?'':'s')+' ✓';
+}
+
+/* ---------- Share (self-contained read-only link) ---------- */
+function b64urlFromBytes(bytes){ let s=''; const CH=8192; for(let i=0;i<bytes.length;i+=CH) s+=String.fromCharCode.apply(null, bytes.subarray(i,i+CH)); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function bytesFromB64url(str){ str=str.replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4) str+='='; const bin=atob(str); const a=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) a[i]=bin.charCodeAt(i); return a; }
+async function gzipStr(str){ const cs=new CompressionStream('gzip'); const ab=await new Response(new Blob([str]).stream().pipeThrough(cs)).arrayBuffer(); return new Uint8Array(ab); }
+async function gunzipBytes(bytes){ const ds=new DecompressionStream('gzip'); const ab=await new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer(); return new TextDecoder().decode(ab); }
+async function encodeShare(obj){ const json=JSON.stringify(obj);
+  if(window.CompressionStream) return 'g'+b64urlFromBytes(await gzipStr(json));
+  return 'r'+b64urlFromBytes(new TextEncoder().encode(json)); }
+async function decodeShare(str){ const flag=str[0], bytes=bytesFromB64url(str.slice(1));
+  if(flag==='g') return JSON.parse(await gunzipBytes(bytes));
+  return JSON.parse(new TextDecoder().decode(bytes)); }
+function buildShareData(withCovers){
+  const owned=games.filter(g=>!g.removed && !g.pending);
+  return { v:1, o:(meta.username||'My'),
+    g: owned.map(g=>{ const o={n:g.name}; if(withCovers&&g.thumbnail)o.i=g.thumbnail; if(g.year)o.y=g.year; if(isExp(g))o.e=1; if(g.comment)o.c=g.comment; if(/^\d+$/.test(String(g.id)))o.d=g.id; return o; }) };
+}
+async function shareCollection(){
+  if(location.protocol==='file:'){ $('#shareMsg').textContent='Open the app at its web address (github.io) to make a shareable link — a local-file link won’t open on another device.'; return; }
+  $('#shareMsg').textContent='Building link…';
+  let data=buildShareData(true), payload=await encodeShare(data), lite=false;
+  let url=location.origin+location.pathname+'#share='+payload;
+  if(url.length>90000){ data=buildShareData(false); payload=await encodeShare(data); url=location.origin+location.pathname+'#share='+payload; lite=true; }
+  const kb=(url.length/1024).toFixed(1), note=lite?' (covers left out to keep it small)':'';
+  const title=data.o+'’s board games', text=title+' — '+data.g.length+' games. Tap to browse:';
+  if(navigator.share){ try{ await navigator.share({title, text, url}); $('#shareMsg').textContent='Shared ✓'+note; return; }catch(e){ if(e&&e.name==='AbortError'){ $('#shareMsg').textContent='Share cancelled.'; return; } } }
+  try{ await navigator.clipboard.writeText(url); $('#shareMsg').textContent='Link copied ('+kb+' KB) — paste it to your friend.'+note; }
+  catch(e){ $('#shareMsg').innerHTML='Copy this link:<br><textarea style="width:100%;min-height:70px" onclick="this.select()">'+esc(url)+'</textarea>'; }
+}
+function enterSharedUI(){
+  ['#addBtn','#importBtn','#menuBtn','#viewseg'].forEach(s=>{ const el=$(s); if(el) el.style.display='none'; });
+  const b=$('.brand'); if(b) b.innerHTML='🎲 '+esc(shareOwner)+'’s games <small>· shared, read-only</small>';
+  document.title=shareOwner+'’s board games';
+}
+async function maybeEnterShareMode(){
+  const m=(location.hash||'').match(/^#share=(.+)$/); if(!m) return false;
+  try{
+    const data=await decodeShare(m[1]);
+    SHARED=true; shareOwner=data.o||'Shared';
+    games=(data.g||[]).map((x,i)=>({ id:x.d||('s'+i), name:x.n, sortName:computeSort(x.n,1), thumbnail:x.i||'', image:x.i||'', year:x.y||'', comment:x.c||'', overrideExpansion:!!x.e, own:true, bggPlays:0, copies:1 }));
+    plays=[]; meta={username:shareOwner};
+    detectExpansions(games);
+    enterSharedUI(); render();
+    return true;
+  }catch(e){ return false; }
 }
 function csvEscape(s){ s=(s??'').toString(); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
 function exportCSV(){
@@ -887,6 +948,7 @@ $('#reimportBtn').addEventListener('click', ()=>{ closeOverlay('menuOverlay'); o
 $('#doImport').addEventListener('click', ()=>{ try{ const n=importCollection($('#xmlInput').value); closeOverlay('importOverlay'); $('#xmlInput').value=''; }catch(err){ $('#importMsg').textContent=err.message; } });
 $('#fileInput').addEventListener('change', e=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ try{ importCollection(r.result); closeOverlay('importOverlay'); }catch(err){ $('#importMsg').textContent=err.message; } }; r.readAsText(f); });
 $('#backupBtn').addEventListener('click', backup);
+$('#shareBtn').addEventListener('click', shareCollection);
 $('#csvBtn').addEventListener('click', exportCSV);
 $('#copyMissingBtn').addEventListener('click', copyMissingArt);
 $('#applyArtBtn').addEventListener('click', applyArtwork);
@@ -896,9 +958,12 @@ $$('[data-close]').forEach(b=>b.addEventListener('click', ()=>b.closest('.overla
 $$('.overlay').forEach(o=>o.addEventListener('click', e=>{ if(e.target===o) o.classList.remove('open'); }));
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') $$('.overlay').forEach(o=>o.classList.remove('open')); });
 
-render();
-loadIndexFromDB();
-if(!games.length) openImport();
+(async function init(){
+  if(location.hash.indexOf('#share=')===0){ if(await maybeEnterShareMode()) return; }
+  render();
+  loadIndexFromDB();
+  if(!games.length) openImport();
+})();
 </script>
 </body>
 </html>
